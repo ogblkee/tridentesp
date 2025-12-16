@@ -50,20 +50,13 @@ function Vercore:SetupESP(player)
     })
 end
 
-function Vercore:UpdateESP()
-    local players = Vercore:GetPlayers()
-    local playerIds = {}
-    for _, v in next, players do
-        playerIds[v.id] = true
-        if not Vercore.ESP_Objects[v.id] then Vercore:SetupESP(v) end
-        local esp = Vercore.ESP_Objects[v.id]
-        local head = v.model:FindFirstChild("Head") or v.model:FindFirstChild("Torso")
-        if head then
-            Vercore:UpdatePosition(esp, head, v)
-        else
-            Vercore:HideESP(esp)
-        end
-    end
+function Vercore:UpdateText(esp, part, player, distance)
+    local WeaponFound = player.equippedItem and player.equippedItem.type or "None"
+    local name = player.name or "Unknown"
+    esp.Text = string.format("%s [%s] %d", name, WeaponFound:lower(), math.floor(distance))
+    esp.Color = Color3.fromRGB(255, 255, 255)
+end
+
     for id, esp in next, Vercore.ESP_Objects do
         if not playerIds[id] then
             Vercore:HideESP(esp)
@@ -74,23 +67,23 @@ end
 
 function Vercore:UpdatePosition(esp, part, player)
     local pos, onScreen = cam:WorldToViewportPoint(part.Position)
+    local distance = (cam.CFrame.Position - part.Position).Magnitude
+if onScreen and distance <= 2000 then
     esp.Position = Vector2.new(pos.X, pos.Y)
-    esp.Visible = onScreen
-    if onScreen then
-        Vercore:UpdateText(esp, part, player)
-    end
+    esp.Visible = true
+    Vercore:UpdateText(esp, part, player, distance)
+else
+    Vercore:HideESP(esp)
 end
-
-function Vercore:UpdateText(esp, part, player)
+function Vercore:UpdateText(esp, part, player, distance)
     local WeaponFound = player.equippedItem and player.equippedItem.type or "None"
-    esp.Text = "[" .. WeaponFound:lower() .. "] " .. math.floor((cam.CFrame.Position - part.Position).Magnitude)
+    local name = player.name or "Unknown"
+    esp.Text = string.format("%s [%s] %d", name, WeaponFound:lower(), math.floor(distance))
 
-    local t = tick() * 2
-    local r = math.sin(t) * 127 + 128
-    local g = math.sin(t + 2) * 127 + 128
-    local b = math.sin(t + 4) * 127 + 128
-    esp.Color = Color3.fromRGB(r, g, b)
+    -- Cor fixa branca
+    esp.Color = Color3.fromRGB(255, 255, 255)
 end
+
 
 function Vercore:HideESP(esp)
     esp.Visible = false
