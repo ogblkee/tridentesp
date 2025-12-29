@@ -1,3 +1,11 @@
+-- Vercore ESP - VERSÃO OTIMIZADA (ZERO LAG) - Trident Survival / Mirage HvH
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+
+-- === PEGA PlayerReg UMA VEZ SÓ (não em loop) ===
 local GetFunction = function(Script, Line)
     for _, v in pairs(getgc()) do
         if typeof(v) == "function" and debug.info(v, "sl") then
@@ -10,92 +18,70 @@ local GetFunction = function(Script, Line)
 end
 
 local SetInfraredEnabled = GetFunction("PlayerClient", 588)
-local PlayerReg = debug.getupvalue(SetInfraredEnabled, 2)
+local PlayerReg = debug.getupvalue(SetInfraredEnabled, 2)  -- Pega UMA VEZ
 
-local Vercore = {}
-Vercore.ESP_Objects = {}
-local cam = workspace.CurrentCamera
-local rs = game:GetService("RunService")
+-- === ESP Objects ===
+local ESP_Objects = {}
 
-function Vercore:Create(className, properties)
-    local success, object = pcall(Drawing.new, className)
-    if not success or not object then return nil end
-    for prop, value in next, properties or {} do
-        if pcall(function() object[prop] = value end) == false then
-            warn(": Invalid property :", prop)
-        end
-    end
-    return object
-end
-
-function Vercore:GetPlayers()
-    local players = {}
-    for _, v in next, PlayerReg do
-        if v and v.model and v.model.Head and not v.sleeping then
-            table.insert(players, v)
-        end
-    end
-    return players
-end
-
-function Vercore:SetupESP(player)
-    Vercore.ESP_Objects[player.id] = Vercore:Create("Text", {
-        Text = "[NONE]",
-        Size = 10,
-        Color = Color3.fromRGB(255, 0, 0),
+-- === Cria Drawing (otimizado) ===
+local function CreateESP()
+    return Drawing.new("Text", {
+        Size = 13,
+        Color = Color3.new(1, 1, 1),
         Outline = true,
-        OutlineColor = Color3.fromRGB(0, 0, 0),
+        OutlineColor = Color3.new(0, 0, 0),
         Center = true,
-        Visible = false
+        Visible = false,
+        Font = Drawing.Fonts.UI
     })
 end
 
-function Vercore:UpdateESP()
-    local players = Vercore:GetPlayers()
-    local playerIds = {}
-    for _, v in next, players do
-        playerIds[v.id] = true
-        if not Vercore.ESP_Objects[v.id] then Vercore:SetupESP(v) end
-        local esp = Vercore.ESP_Objects[v.id]
-        local head = v.model:FindFirstChild("Head") or v.model:FindFirstChild("Torso")
-        if head then
-            Vercore:UpdatePosition(esp, head, v)
-        else
-            Vercore:HideESP(esp)
-        end
-    end
-    for id, esp in next, Vercore.ESP_Objects do
-        if not playerIds[id] then
-            Vercore:HideESP(esp)
-            Vercore.ESP_Objects[id] = nil
-        end
-    end
-end
-
-function Vercore:UpdatePosition(esp, part, player)
-    local pos, onScreen = cam:WorldToViewportPoint(part.Position)
-    esp.Position = Vector2.new(pos.X, pos.Y)
-    esp.Visible = onScreen
-    if onScreen then
-        Vercore:UpdateText(esp, part, player)
-    end
-end
-
-function Vercore:UpdateText(esp, part, player)
-    local WeaponFound = player.equippedItem and player.equippedItem.type or "None"
-    esp.Text = "[" .. WeaponFound:lower() .. "] " .. math.floor((cam.CFrame.Position - part.Position).Magnitude)
-
+-- === Cache de cor rainbow (calcula UMA vez por frame, não por jogador) ===
+local RainbowColor
+RunService.Heartbeat:Connect(function()
     local t = tick() * 2
     local r = math.sin(t) * 127 + 128
     local g = math.sin(t + 2) * 127 + 128
     local b = math.sin(t + 4) * 127 + 128
-    esp.Color = Color3.fromRGB(r, g, b)
-end
-
-function Vercore:HideESP(esp)
-    esp.Visible = false
-end
-
-rs.RenderStepped:Connect(function()
-    Vercore:UpdateESP()
+    RainbowColor = Color3.fromRGB(r, g, b)
 end)
+
+-- === UPDATE ESP (otimizado) ===
+local function UpdateESP()
+    local myPos = Camera.CFrame.Position
+
+    for id, playerData in pairs(PlayerReg) do
+        if playerData and playerData.model and playerData.model:FindFirstChild("Head") and not playerData.sleeping then
+            local esp = ESP_Objects[id]
+            if not esp then
+                esp = CreateESP()
+                ESP_Objects[id] = esp
+            end
+
+            local head = playerData.model.Head
+            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+
+            if onScreen then
+                local distance = math.floor((myPos - head.Position).Magnitude)
+                local weapon = playerData.equippedItem and playerData.equippedItem.type or "None"
+
+                esp.Text = string.format("[%s] %d", weapon:lower(), distance)
+                esp.Position = Vector2.new(pos.X, pos.Y)
+                esp.Color = RainbowColor
+                esp.Visible = true
+            else
+                esp.Visible = false
+            end
+        else
+            -- Jogador saiu/morreu
+            if ESP_Objects[id] then
+                ESP_Objects[id].Visible = false
+                ESP_Objects[id]:Remove()
+                ESP_Objects[id] = nil
+            end
+        end
+    end
+end
+
+-- === LOOP PRINCIPAL (Heartbeat = menos pesado que RenderStepped) ===
+RunService.Heartbeat:Connect(UpdateESP)
