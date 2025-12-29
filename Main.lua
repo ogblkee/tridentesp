@@ -1,11 +1,11 @@
--- Vercore ESP - VERSÃO OTIMIZADA (ZERO LAG) - Trident Survival / Mirage HvH
+-- Vercore ESP - VERSÃO FINAL CORRIGIDA (ZERO LAG + Sem ESP congelado na tela)
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 
--- === PEGA PlayerReg UMA VEZ SÓ (não em loop) ===
+-- === PEGA PlayerReg UMA VEZ SÓ ===
 local GetFunction = function(Script, Line)
     for _, v in pairs(getgc()) do
         if typeof(v) == "function" and debug.info(v, "sl") then
@@ -18,26 +18,25 @@ local GetFunction = function(Script, Line)
 end
 
 local SetInfraredEnabled = GetFunction("PlayerClient", 588)
-local PlayerReg = debug.getupvalue(SetInfraredEnabled, 2)  -- Pega UMA VEZ
+local PlayerReg = debug.getupvalue(SetInfraredEnabled, 2)
 
 -- === ESP Objects ===
 local ESP_Objects = {}
 
--- === Cria Drawing (otimizado) ===
+-- === Cria Drawing ESP ===
 local function CreateESP()
-    return Drawing.new("Text", {
-        Size = 13,
-        Color = Color3.new(1, 1, 1),
-        Outline = true,
-        OutlineColor = Color3.new(0, 0, 0),
-        Center = true,
-        Visible = false,
-        Font = Drawing.Fonts.UI
-    })
+    local esp = Drawing.new("Text")
+    esp.Size = 13
+    esp.Color = Color3.new(1, 1, 1)
+    esp.Outline = true
+    esp.Center = true
+    esp.Font = Drawing.Fonts.UI
+    esp.Visible = false
+    return esp
 end
 
--- === Cache de cor rainbow (calcula UMA vez por frame, não por jogador) ===
-local RainbowColor
+-- === Rainbow global (calculado 1x por frame) ===
+local RainbowColor = Color3.new(1, 1, 1)
 RunService.Heartbeat:Connect(function()
     local t = tick() * 2
     local r = math.sin(t) * 127 + 128
@@ -46,7 +45,7 @@ RunService.Heartbeat:Connect(function()
     RainbowColor = Color3.fromRGB(r, g, b)
 end)
 
--- === UPDATE ESP (otimizado) ===
+-- === UPDATE ESP (corrigido: posição sempre atualizada, evita congelamento) ===
 local function UpdateESP()
     local myPos = Camera.CFrame.Position
 
@@ -61,19 +60,21 @@ local function UpdateESP()
             local head = playerData.model.Head
             local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
 
+            -- SEMPRE atualiza posição (mesmo se offscreen)
+            esp.Position = Vector2.new(pos.X, pos.Y)
+
             if onScreen then
                 local distance = math.floor((myPos - head.Position).Magnitude)
                 local weapon = playerData.equippedItem and playerData.equippedItem.type or "None"
 
                 esp.Text = string.format("[%s] %d", weapon:lower(), distance)
-                esp.Position = Vector2.new(pos.X, pos.Y)
                 esp.Color = RainbowColor
                 esp.Visible = true
             else
-                esp.Visible = false
+                esp.Visible = false  -- esconde, mas posição continua atualizada (não congela)
             end
         else
-            -- Jogador saiu/morreu
+            -- Jogador saiu/morreu/sleeping → remove ESP
             if ESP_Objects[id] then
                 ESP_Objects[id].Visible = false
                 ESP_Objects[id]:Remove()
@@ -83,5 +84,5 @@ local function UpdateESP()
     end
 end
 
--- === LOOP PRINCIPAL (Heartbeat = menos pesado que RenderStepped) ===
+-- === LOOP PRINCIPAL (Heartbeat = suave) ===
 RunService.Heartbeat:Connect(UpdateESP)
