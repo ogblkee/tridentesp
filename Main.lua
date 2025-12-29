@@ -1,4 +1,4 @@
--- Vercore ESP - VERSÃO FINAL CORRIGIDA (ZERO LAG + Sem ESP congelado na tela)
+-- Vercore ESP - VERSÃO FINAL 100% CORRIGIDA (ZERO LAG + Sem ESP acumulado/congelado)
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -35,7 +35,7 @@ local function CreateESP()
     return esp
 end
 
--- === Rainbow global (calculado 1x por frame) ===
+-- === Rainbow global (1x por frame) ===
 local RainbowColor = Color3.new(1, 1, 1)
 RunService.Heartbeat:Connect(function()
     local t = tick() * 2
@@ -45,12 +45,15 @@ RunService.Heartbeat:Connect(function()
     RainbowColor = Color3.fromRGB(r, g, b)
 end)
 
--- === UPDATE ESP (corrigido: posição sempre atualizada, evita congelamento) ===
+-- === UPDATE ESP (corrigido: remove ESP imediatamente quando jogador sai) ===
 local function UpdateESP()
     local myPos = Camera.CFrame.Position
+    local currentIds = {}  -- tabela temporária pra rastrear quem está vivo agora
 
     for id, playerData in pairs(PlayerReg) do
         if playerData and playerData.model and playerData.model:FindFirstChild("Head") and not playerData.sleeping then
+            currentIds[id] = true  -- marca como ativo
+
             local esp = ESP_Objects[id]
             if not esp then
                 esp = CreateESP()
@@ -60,7 +63,7 @@ local function UpdateESP()
             local head = playerData.model.Head
             local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
 
-            -- SEMPRE atualiza posição (mesmo se offscreen)
+            -- Atualiza posição SEMPRE (evita congelamento)
             esp.Position = Vector2.new(pos.X, pos.Y)
 
             if onScreen then
@@ -71,18 +74,20 @@ local function UpdateESP()
                 esp.Color = RainbowColor
                 esp.Visible = true
             else
-                esp.Visible = false  -- esconde, mas posição continua atualizada (não congela)
+                esp.Visible = false
             end
-        else
-            -- Jogador saiu/morreu/sleeping → remove ESP
-            if ESP_Objects[id] then
-                ESP_Objects[id].Visible = false
-                ESP_Objects[id]:Remove()
-                ESP_Objects[id] = nil
-            end
+        end
+    end
+
+    -- === LIMPEZA: Remove ESP de jogadores que não estão mais em PlayerReg ===
+    for id, esp in pairs(ESP_Objects) do
+        if not currentIds[id] then
+            esp.Visible = false
+            esp:Remove()           -- Remove o Drawing completamente
+            ESP_Objects[id] = nil  -- Limpa da tabela
         end
     end
 end
 
--- === LOOP PRINCIPAL (Heartbeat = suave) ===
+-- === LOOP PRINCIPAL ===
 RunService.Heartbeat:Connect(UpdateESP)
