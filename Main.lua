@@ -1,5 +1,3 @@
--- Vercore ESP - VERSÃO FINAL 100% CORRIGIDA (ZERO LAG + Sem ESP acumulado/congelado)
-
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -7,14 +5,14 @@ local RunService = game:GetService("RunService")
 
 -- === PEGA PlayerReg UMA VEZ SÓ ===
 local GetFunction = function(Script, Line)
-    for _, v in pairs(getgc()) do
-        if typeof(v) == "function" and debug.info(v, "sl") then
-            local src, lineNum = debug.info(v, "s"), debug.info(v, "l")
-            if src:find(Script) and lineNum == Line then
-                return v
-            end
-        end
-    end
+	for _, v in pairs(getgc()) do
+		if typeof(v) == "function" and debug.info(v, "sl") then
+			local src, lineNum = debug.info(v, "s"), debug.info(v, "l")
+			if src:find(Script) and lineNum == Line then
+				return v
+			end
+		end
+	end
 end
 
 local SetInfraredEnabled = GetFunction("PlayerClient", 588)
@@ -25,16 +23,72 @@ local ESP_Objects = {}
 
 -- === Cria Drawing ESP ===
 local function CreateESP()
-    local esp = Drawing.new("Text")
-    esp.Size = 13
-    esp.Color = Color3.new(1, 1, 1)
-    esp.Outline = true
-    esp.Center = true
-    esp.Font = Drawing.Fonts.UI
-    esp.Visible = false
-    return esp
+	local esp = Drawing.new("Text")
+	esp.Size = 13
+	esp.Color = Color3.new(1, 1, 1)
+	esp.Outline = true
+	esp.Center = true
+	esp.Font = Drawing.Fonts.UI
+	esp.Visible = false
+	return esp
 end
 
+-- === Rainbow global (1x por frame) ===
+local RainbowColor = Color3.new(1, 1, 1)
+RunService.Heartbeat:Connect(function()
+	local t = tick() * 2
+	local r = math.sin(t) * 127 + 128
+	local g = math.sin(t + 2) * 127 + 128
+	local b = math.sin(t + 4) * 127 + 128
+	RainbowColor = Color3.fromRGB(r, g, b)
+end)
+
+-- === LOOP PRINCIPAL ===
+RunService.RenderStepped:Connect(function()
+	local myPos = Camera.CFrame.Position
+	local currentIds = {}
+
+	for id, playerData in pairs(PlayerReg) do
+		local model = playerData.model
+		if model and model:FindFirstChild("Head") and not playerData.sleeping then
+			currentIds[id] = true
+
+			local esp = ESP_Objects[id]
+			if not esp then
+				esp = CreateESP()
+				ESP_Objects[id] = esp
+			end
+
+			local head = model.Head
+			if not head:IsDescendantOf(workspace) then
+				esp.Visible = false
+				continue
+			end
+
+			local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+			if onScreen then
+				local distance = math.floor((myPos - head.Position).Magnitude)
+				local weapon = playerData.equippedItem and playerData.equippedItem.type or "None"
+
+				esp.Text = string.format("[%s] %d", weapon:lower(), distance)
+				esp.Position = Vector2.new(pos.X, pos.Y)
+				esp.Color = RainbowColor
+				esp.Visible = true
+			else
+				esp.Visible = false
+			end
+		end
+	end
+
+	-- Limpeza de ESPs antigos
+	for id, esp in pairs(ESP_Objects) do
+		if not currentIds[id] then
+			esp.Visible = false
+			esp:Remove()
+			ESP_Objects[id] = nil
+		end
+	end
+end)
 -- === Rainbow global (1x por frame) ===
 local RainbowColor = Color3.new(1, 1, 1)
 RunService.Heartbeat:Connect(function()
